@@ -86,6 +86,8 @@ impl RoadNetwork {
                     for node_id in way.raw_refs() {
                         graph.nodes.insert(node_id.clone());
                     }
+
+                   // println!("node ref like: {:?}", way.raw_refs());
                 
                     if way.raw_refs().len() >= 2 {
                         ways.push(SimplifiedWay {
@@ -130,12 +132,10 @@ impl RoadNetwork {
                             .meters();
 
                             let speed_metres_per_second:f32 = way.highway_speed_m_per_s as f32 * (5.0 / 18.0);
-
-
                             let cost = (speed_metres_per_second as f64 / distance_metres) as u32;
                             
                             let tail_id = way.node_sequence[i];
-                            let head_id =  way.node_sequence[i + 1];
+                            let head_id = way.node_sequence[i + 1];
 
                             graph.edges.entry(tail_id).and_modify(|edge_list| {edge_list.insert(head_id, cost);}).or_insert({
                                 let mut a = HashMap::new();
@@ -151,8 +151,10 @@ impl RoadNetwork {
 
                             //save back to prevent relookup
                             previous_head_node_location_now_tail_location = Some(&head_location);
-                            previous_head_node_index = i;
+                            previous_head_node_index = i + 1;
                         }
+                    } else {
+                       // println!("Can't find node {}", way.node_sequence[i]);
                     }
                 }
         }
