@@ -20,32 +20,32 @@ pub struct SimplifiedWay {
     node_sequence: Vec<i64>
 }
 
-pub fn way_node_to_geoutil_loc(x: &WayNodeLocation) -> Location {
-    Location::new(x.lat(), x.lon())
-}
+pub fn speed_from_way_kmh(way: &osmpbfreader::objects::Way) -> Option<u32> {
 
-pub fn speed_from_way_kmh(way: &Way) -> Option<u32> {
-    let highway = way.tags().find(|(key, _)| key == &"highway");
+    let tags = way.tags.clone();
+    let highway = tags.into_inner().into_iter().find(|(key, _)| key == &"highway");
 
     match highway {
-        Some(highway) => match highway.1 {
-            "motorway" => Some(110),
-            "trunk" => Some(110),
-            "primary" => Some(70),
-            "secondary" => Some(60),
-            "tertiary" => Some(50),
-            "motorway_link" => Some(50),
-            "trunk_link" => Some(50),
-            "primary_link" => Some(50),
-            "secondary_link" => Some(50),
-            "road" => Some(40),
-            "unclassified" => Some(40),
-            "residential" => Some(30),
-            "unsurfaced" => Some(30),
-            "living_street" => Some(10),
-            "service" => Some(5),
-            _ => None,
-        },
+        Some(highway) => {
+            match highway.1.as_str() {
+                "motorway" => Some(110),
+                "trunk" => Some(110),
+                "primary" => Some(70),
+                "secondary" => Some(60),
+                "tertiary" => Some(50),
+                "motorway_link" => Some(50),
+                "trunk_link" => Some(50),
+                "primary_link" => Some(50),
+                "secondary_link" => Some(50),
+                "road" => Some(40),
+                "unclassified" => Some(40),
+                "residential" => Some(30),
+                "unsurfaced" => Some(30),
+                "living_street" => Some(10),
+                "service" => Some(5),
+                _ => None,
+            }
+        }
         None => None,
     }
 }
@@ -58,50 +58,50 @@ impl RoadNetwork {
         let mut node_counter: u32 = 0;
         let mut dense_node_counter: u32 = 0;
 
-        let reader_first = ElementReader::from_path(path)?;
+        let path_cleaned = std::path::Path::new(&path);
+        let r = std::fs::File::open(&path_cleaned).unwrap();
 
+        let mut pbf = osmpbfreader::OsmPbfReader::new(r);
+
+        let mut new_way_counter: u32 = 0;
+        let mut new_node_counter: u32 = 0;
+        
+        use osmpbfreader::objects::OsmObj;
         let mut ways:Vec<SimplifiedWay> = vec![];
 
         let mut nodes_hashmap: HashMap<i64, Location> = HashMap::new();
 
-        reader_first.for_each(|element| match element {
-            Element::Node(node) => {
-                node_counter += 1;
-            },
-            Element::DenseNode(dense_node) => {
-                dense_node_counter += 1;
-                let highway = dense_node.tags().find(|(key, _)| key == &"highway");
+        for obj in pbf.iter().map(Result::unwrap) {
+            match obj {
+                OsmObj::Node(node) => {
+                    new_node_counter = new_node_counter + 1;
+                    graph.nodes.insert(node.id.0);
+                    nodes_hashmap.insert(node.id.0, Location::new(node.lat(), node.lon()));
+                },
+                OsmObj::Way(way) => {
+                    new_way_counter = new_way_counter + 1;
 
-                //if highway.is_some() {
-                    nodes_hashmap.insert(dense_node.id, Location::new(dense_node.lat(), dense_node.lon()));
-                //}
-
-            },
-            Element::Way(way) => {
-                way_counter = way_counter + 1;
-
-                if let Some(speed) = speed_from_way_kmh(&way) {
-                    let speed_metres_per_second:f32 = speed as f32 * (5.0 / 18.0);
-
-                    for node_id in way.raw_refs() {
-                        graph.nodes.insert(node_id.clone());
+                    if let Some(speed) = speed_from_way_kmh(&way) {
+                        let speed_metres_per_second:f32 = speed as f32 * (5.0 / 18.0);
+                       // println!("node ref like: {:?}", way.raw_refs());
+                    
+                        if way.nodes.len() >= 2 {
+                            ways.push(SimplifiedWay {
+                                node_sequence: Vec::from_iter(way.nodes.into_iter().map(|x| x.0.clone()).collect::<Vec<i64>>()),
+                                id: way.id.0,
+                                highway_speed_m_per_s: speed_metres_per_second
+                            });
+                        }
                     }
+                },
+                _ => {}
+            }
+        }
 
-                   // println!("node ref like: {:?}", way.raw_refs());
-                
-                    if way.raw_refs().len() >= 2 {
-                        ways.push(SimplifiedWay {
-                            node_sequence: Vec::from_iter(way.raw_refs().into_iter().map(|x| x.clone()).collect::<Vec<i64>>()),
-                            id: way.id(),
-                            highway_speed_m_per_s: speed_metres_per_second
-                        });
-                    }
-                }
-            },
-            _=>{}
-        })?;
+        println!("{} new nodes, {} new ways", new_way_counter, new_node_counter);
 
-        println!("{} nodes, {} dense nodes, {} ways", node_counter, dense_node_counter, way_counter);
+
+      //  println!("{} nodes, {} dense nodes, {} ways", node_counter, dense_node_counter, way_counter);
         println!("{} simplified way count", ways.len());
         println!("{} in nodes_hashmap",  nodes_hashmap.len());
 
@@ -154,7 +154,7 @@ impl RoadNetwork {
                             previous_head_node_index = i + 1;
                         }
                     } else {
-                       // println!("Can't find node {}", way.node_sequence[i]);
+                  //      println!("Can't find node {} inside way {}", way.node_sequence[i], way.id);
                     }
                 }
         }
@@ -224,40 +224,37 @@ impl RoadNetwork {
 mod tests {
     use super::*;
 
-    
-    #[test]
-    fn test_baden_wuerttemberg() {
-        let start = Instant::now();
-        let baden_graph = RoadNetwork::read_from_osm_file("./baden-wuerttemberg-latest.osm.pbf");
-        let elapsed = start.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
-        assert!(baden_graph.is_ok());
-
-        let baden_graph = baden_graph.unwrap();
-
-        println!(
-            "baden {} nodes, {} edges",
-            baden_graph.nodes.len(),
-            baden_graph.edges.len()
-        );
-    }
-
     /* 
     #[test]
-    fn test_socal() {
+    fn test_baden_wuerttemberg() {
+        test_osm("./baden-wuerttemberg-latest.osm.pbf");
+    }*/
+
+    #[test]
+    fn ucirvine() {
+        test_osm("./uci.osm.pbf");
+    }
+
+    #[test]
+    fn bast_baden_wuerttemberg() {
+        test_osm("./bast-baden-wuerttemberg.pbf");
+    }
+
+    fn test_osm(path: &str) -> () {
         let start = Instant::now();
-        let baden_graph = RoadNetwork::read_from_osm_file("./socal-latest.osm.pbf");
+        let baden_graph = RoadNetwork::read_from_osm_file(path);
         let elapsed = start.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("{} Elapsed: {:.2?}",path, elapsed);
         assert!(baden_graph.is_ok());
 
         let baden_graph = baden_graph.unwrap();
 
         println!(
-            "socal {} nodes, {} edges",
+            "{} {} nodes, {} edges",
+            path,
             baden_graph.nodes.len(),
             baden_graph.edges.len()
         );
     }
-    */
+    
 }
