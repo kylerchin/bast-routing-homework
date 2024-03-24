@@ -98,11 +98,7 @@ impl RoadNetwork {
             }
         }
 
-        println!("{} new nodes, {} new ways", new_way_counter, new_node_counter);
-
-
-      //  println!("{} nodes, {} dense nodes, {} ways", node_counter, dense_node_counter, way_counter);
-        println!("{} simplified way count", ways.len());
+        println!("{} new nodes, {} new ways", new_way_counter, new_node_counter); println!("{} simplified way count", ways.len());
         println!("{} in nodes_hashmap",  nodes_hashmap.len());
 
         for way in ways {
@@ -153,61 +149,9 @@ impl RoadNetwork {
                             previous_head_node_location_now_tail_location = Some(&head_location);
                             previous_head_node_index = i + 1;
                         }
-                    } else {
-                  //      println!("Can't find node {} inside way {}", way.node_sequence[i], way.id);
                     }
                 }
         }
-
-        /* 
-        reader.for_each(|element| match element {
-            Element::Way(way) => {
-
-                if let Some(speed) = speed_from_way_kmh(&way) {
-                    let speed_metres_per_second:f32 = speed as f32 * (5.0 / 18.0);
-
-                for node_id in way.raw_refs() {
-                    graph.nodes.insert(node_id.clone());
-                }
-
-                if way.raw_refs().len() >= 2 {
-                    let path = way.node_locations().collect::<Vec<WayNodeLocation>>();
-
-                    if path.len() >= 2 {
-                    for i in 0..path.len() - 1 {
-                        let tail_node_coord = way_node_to_geoutil_loc(&path[i]);
-                        let head_node_coord = way_node_to_geoutil_loc(&path[i + 1]);
-                        let distance_metres = tail_node_coord
-                            .haversine_distance_to(&head_node_coord)
-                            .meters();
-
-                        let cost = (speed_metres_per_second as f64 / distance_metres) as u32;
-
-                        let tail_id = way.raw_refs()[i];
-                        let head_id = way.raw_refs()[i + 1];
-
-                        graph.edges.entry(tail_id).and_modify(|edge_list| {edge_list.insert(head_id, cost);}).or_insert({
-                            let mut a = HashMap::new();
-                            a.insert(head_id, cost);
-                            a
-                        });
-
-                        graph.edges.entry(head_id).and_modify(|edge_list| {edge_list.insert(tail_id, cost);}).or_insert({
-                            let mut a = HashMap::new();
-                            a.insert(tail_id, cost);
-                            a
-                        });
-                    }
-                    } else {
-                        //println!("Path string is too short {:?}", path.len());
-                    }
-                } else {
-                       // println!("Way is too short {:?}", way.raw_refs());
-                }
-                }
-            }
-            _ => {}
-        })?;*/
 
         Ok(graph)
     }
