@@ -72,9 +72,9 @@ impl RoadNetwork {
                 dense_node_counter += 1;
                 let highway = dense_node.tags().find(|(key, _)| key == &"highway");
 
-                if highway.is_some() {
+                //if highway.is_some() {
                     nodes_hashmap.insert(dense_node.id, Location::new(dense_node.lat(), dense_node.lon()));
-                }
+                //}
 
             },
             Element::Way(way) => {
@@ -101,6 +101,7 @@ impl RoadNetwork {
 
         println!("{} nodes, {} dense nodes, {} ways", node_counter, dense_node_counter, way_counter);
         println!("{} simplified way count", ways.len());
+        println!("{} in nodes_hashmap",  nodes_hashmap.len());
 
         for way in ways {
                 let mut previous_head_node_location_now_tail_location: Option<&Location> = None;
