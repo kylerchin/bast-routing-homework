@@ -7,5 +7,12 @@ Step 2: Extract into .osm files
 
 Step 3: convert to pbf 
 ```bash
-osmconvert baden-wuerttemberg.osm -o=baden-wuerttemberg.pbf
+osmconvert baden-wuerttemberg.osm -o=bast-baden-wuerttemberg.pbf
 ```
+
+----------
+
+It's probably better to run the examples with more recent data.
+
+https://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf
+https://download.geofabrik.de/europe/germany/saarland-latest.osm.pbf
