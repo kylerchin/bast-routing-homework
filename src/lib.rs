@@ -128,7 +128,7 @@ impl RoadNetwork {
                             .meters();
 
                             let speed_metres_per_second:f32 = way.highway_speed_m_per_s as f32 * (5.0 / 18.0);
-                            let cost = (speed_metres_per_second as f64 / distance_metres) as u32;
+                            let cost = (distance_metres / speed_metres_per_second as f64) as u32;
                             
                             let tail_id = way.node_sequence[i];
                             let head_id = way.node_sequence[i + 1];
