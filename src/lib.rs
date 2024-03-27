@@ -5,6 +5,8 @@ use osmpbf::{Element, ElementReader};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::time::Instant;
+use std::sync::Arc;
+use priority_queue::DoublePriorityQueue;
 
 #[derive(Default)]
 pub struct RoadNetwork {
@@ -50,7 +52,150 @@ pub fn speed_from_way_kmh(way: &osmpbfreader::objects::Way) -> Option<u32> {
     }
 }
 
+struct DijkstrasAlgorithm {
+    graph: Arc<RoadNetwork>,
+    visited_node_marks: HashSet<i64>,
+}
+
+struct ShortestPath {
+    path: Vec<i64>,
+    cost: u32,
+}
+
+#[derive(PartialEq, Eq, Copy, Clone, Debug, PartialOrd)]
+enum BastPriorityValue {
+    Infinity,
+    Some(u32),
+}
+
+impl std::ops::Add for BastPriorityValue {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        match self {
+            BastPriorityValue::Infinity => BastPriorityValue::Infinity,
+            BastPriorityValue::Some(a) => match rhs {
+                BastPriorityValue::Infinity => BastPriorityValue::Infinity,
+                BastPriorityValue::Some(b) => BastPriorityValue::Some(a + b)
+            }
+        }
+    }
+}
+
+impl Ord for BastPriorityValue {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (BastPriorityValue::Infinity, BastPriorityValue::Infinity) => std::cmp::Ordering::Equal,
+            (BastPriorityValue::Infinity, BastPriorityValue::Some(_)) => std::cmp::Ordering::Greater,
+            (BastPriorityValue::Some(_), BastPriorityValue::Infinity) => std::cmp::Ordering::Less,
+            (BastPriorityValue::Some(a), BastPriorityValue::Some(b)) => a.cmp(b),
+        }
+    }
+
+    fn max(self, other: Self) -> Self {
+        match (self, other) {
+            (BastPriorityValue::Infinity, _) => BastPriorityValue::Infinity,
+            (_, BastPriorityValue::Infinity) => BastPriorityValue::Infinity,
+            (BastPriorityValue::Some(a), BastPriorityValue::Some(b)) => {
+                if a > b {
+                    BastPriorityValue::Some(a)
+                } else {
+                    BastPriorityValue::Some(b)
+                }
+            }
+        }
+    }
+
+    fn min(self, other: Self) -> Self {
+        match (self, other) {
+            (BastPriorityValue::Infinity, _) => other,
+            (_, BastPriorityValue::Infinity) => self,
+            (BastPriorityValue::Some(a), BastPriorityValue::Some(b)) => {
+                if a < b {
+                    BastPriorityValue::Some(a)
+                } else {
+                    BastPriorityValue::Some(b)
+                }
+            }
+        }
+    }
+
+    fn clamp(self, min: Self, max: Self) -> Self {
+        self.max(min).min(max)
+    }
+}
+
+impl DijkstrasAlgorithm {
+    //Mark all nodes visited by the next call to compute_shortest_path with this number
+    pub fn set_visited_node_mark(&mut self, node_id: i64) {
+        self.visited_node_marks.insert(node_id);
+    }
+
+    //Compute the shortest path from source to target, returns the cost
+    // run until all nodes reachable from the source are settled
+    // -1 as target id tries to settle all nodes
+   
+    pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> u32 {
+        //create vertex priority queue Q
+        let mut pq:DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
+
+        
+        let mut distances:HashMap<i64,BastPriorityValue> = HashMap::new();
+        // Predecessor data store
+        let mut prev: HashMap<i64,Option<i64>> = HashMap::new();
+        
+        //initialisation
+        distances.insert(source, BastPriorityValue::Some(0));
+
+        // associated priority equals dist[·]
+        pq.push(source.clone(),BastPriorityValue::Some(0));
+
+        for node in self.graph.nodes.iter() {
+            if node != &source {
+                prev.insert(node.clone(), None); // Predecessor of v
+                distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
+            }
+        }
+
+        //the main loop
+        while !pq.is_empty() {
+            // Remove and return best vertex
+            //u ← Q.extract_min() 
+            if let Some(u) = pq.pop_min() {
+                // Go through all v neighbours of u
+                if let Some(neighbours) = self.graph.edges.get(&u.0) {
+                    for v in neighbours {
+                        //u.0 is the node id
+                        //distances.get(&u.0).unwrap().clone() is cost of node u
+                        //v.1 is cost for v pair, v.0 is the node id
+                        let alt = distances.get(&u.0).unwrap().clone() + BastPriorityValue::Some(v.1.clone());
+
+                        let Some(dist_v) = distances.get(&v.0) {
+                            //if the new distance is better than the previously stored distance for this node
+                            if alt < dist_v {
+                                    prev.insert(&v.0, Some(u.0.clone()));
+
+                                     distances.insert(v.0.clone(), alt.clone());
+
+                                     //Instead of filling the priority queue with all nodes in the initialization phase,
+                                     // it is also possible to initialize it to contain only source; 
+                                     //then, inside the if alt < dist[v] block, 
+                                     //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
+                                     pq.insert(v.0.clone(), alt.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //somehow return the cost?
+        0
+    }
+}
+
 impl RoadNetwork {
+
     pub fn read_from_osm_file(path: &str) -> Result<RoadNetwork, Box<dyn Error>> {
         let mut graph = RoadNetwork::new();
 
@@ -75,7 +220,7 @@ impl RoadNetwork {
             match obj {
                 OsmObj::Node(node) => {
                     new_node_counter = new_node_counter + 1;
-                    graph.nodes.insert(node.id.0);
+                  //  graph.nodes.insert(node.id.0);
                     nodes_hashmap.insert(node.id.0, Location::new(node.lat(), node.lon()));
                 }
                 OsmObj::Way(way) => {
@@ -108,7 +253,6 @@ impl RoadNetwork {
             new_node_counter, new_way_counter
         );
         println!("{} simplified way count", ways.len());
-        println!("{} in nodes_hashmap", nodes_hashmap.len());
 
         for way in ways {
             let mut previous_head_node_location_now_tail_location: Option<&Location> = None;
@@ -174,6 +318,13 @@ impl RoadNetwork {
             }
         }
 
+        //new node insertion process
+        let new_nodes:HashSet<i64> = HashSet::from_iter(graph.edges.iter().map(|(node_id, _)| node_id.clone()));
+
+        graph.nodes = new_nodes;
+        
+        println!("{} in nodes_hashmap", nodes_hashmap.len());
+
         Ok(graph)
     }
 
@@ -197,7 +348,11 @@ mod tests {
 
     #[test]
     fn ucirvine() {
-        test_osm("./uci.osm.pbf");
+        let graph = test_osm("./uci.osm.pbf");
+
+        //for (node_id, edges) in graph.edges {
+        //    println!("{} | {:?}", node_id, edges);
+        //}
     }
 
     #[test]
@@ -205,20 +360,22 @@ mod tests {
         test_osm("./bast-baden-wuerttemberg.pbf");
     }
 
-    fn test_osm(path: &str) -> () {
+    fn test_osm(path: &str) -> RoadNetwork {
         let start = Instant::now();
-        let baden_graph = RoadNetwork::read_from_osm_file(path);
+        let graph = RoadNetwork::read_from_osm_file(path);
         let elapsed = start.elapsed();
         println!("{} Elapsed: {:.2?}", path, elapsed);
-        assert!(baden_graph.is_ok());
+        assert!(graph.is_ok());
 
-        let baden_graph = baden_graph.unwrap();
+        let graph = graph.unwrap();
 
         println!(
             "{} {} nodes, {} edges",
             path,
-            baden_graph.nodes.len(),
-            baden_graph.edges.len()
+            graph.nodes.len(),
+            graph.edges.len()
         );
+
+        graph
     }
 }
