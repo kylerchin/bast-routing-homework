@@ -153,7 +153,8 @@ impl DijkstrasAlgorithm {
         for node in self.graph.nodes.iter() {
             if node != &source {
                 prev.insert(node.clone(), None); // Predecessor of v
-                distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
+                //save on memory, don't insert nothing, if nothing is found, state that the node is infinite distance
+                //distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
             }
         }
 
@@ -168,7 +169,11 @@ impl DijkstrasAlgorithm {
                         //u.0 is the node id
                         //distances.get(&u.0).unwrap().clone() is cost of node u
                         //v.1 is cost for v pair, v.0 is the node id
-                        let alt = distances.get(&u.0).unwrap().clone() + BastPriorityValue::Some(v.1.clone());
+                        let u_dist = match distances.get(&u.0) {
+                            Some(u_dist) => u_dist.clone(),
+                            None => BastPriorityValue::Infinity
+                        };
+                        let alt = u_dist + BastPriorityValue::Some(v.1.clone());
 
                         let Some(dist_v) = distances.get(&v.0) {
                             //if the new distance is better than the previously stored distance for this node
