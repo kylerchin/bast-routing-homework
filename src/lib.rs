@@ -175,10 +175,10 @@ impl DijkstrasAlgorithm {
                         };
                         let alt = u_dist + BastPriorityValue::Some(v.1.clone());
 
-                        let Some(dist_v) = distances.get(&v.0) {
+                        if let Some(dist_v) = distances.get(&v.0) {
                             //if the new distance is better than the previously stored distance for this node
-                            if alt < dist_v {
-                                    prev.insert(&v.0, Some(u.0.clone()));
+                            if alt < *dist_v {
+                                    prev.insert(v.0.clone(), Some(u.0.clone()));
 
                                      distances.insert(v.0.clone(), alt.clone());
 
@@ -186,7 +186,7 @@ impl DijkstrasAlgorithm {
                                      // it is also possible to initialize it to contain only source; 
                                      //then, inside the if alt < dist[v] block, 
                                      //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
-                                     pq.insert(v.0.clone(), alt.clone());
+                                     pq.push(v.0.clone(), alt.clone());
                             }
                         }
                     }
