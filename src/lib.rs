@@ -2,11 +2,11 @@ use geoutils::Location;
 use osmpbf::elements::Way;
 use osmpbf::elements::WayNodeLocation;
 use osmpbf::{Element, ElementReader};
+use priority_queue::DoublePriorityQueue;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::time::Instant;
 use std::sync::Arc;
-use priority_queue::DoublePriorityQueue;
+use std::time::Instant;
 
 #[derive(Default)]
 pub struct RoadNetwork {
@@ -76,8 +76,8 @@ impl std::ops::Add for BastPriorityValue {
             BastPriorityValue::Infinity => BastPriorityValue::Infinity,
             BastPriorityValue::Some(a) => match rhs {
                 BastPriorityValue::Infinity => BastPriorityValue::Infinity,
-                BastPriorityValue::Some(b) => BastPriorityValue::Some(a + b)
-            }
+                BastPriorityValue::Some(b) => BastPriorityValue::Some(a + b),
+            },
         }
     }
 }
@@ -86,7 +86,9 @@ impl Ord for BastPriorityValue {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
             (BastPriorityValue::Infinity, BastPriorityValue::Infinity) => std::cmp::Ordering::Equal,
-            (BastPriorityValue::Infinity, BastPriorityValue::Some(_)) => std::cmp::Ordering::Greater,
+            (BastPriorityValue::Infinity, BastPriorityValue::Some(_)) => {
+                std::cmp::Ordering::Greater
+            }
             (BastPriorityValue::Some(_), BastPriorityValue::Infinity) => std::cmp::Ordering::Less,
             (BastPriorityValue::Some(a), BastPriorityValue::Some(b)) => a.cmp(b),
         }
@@ -134,34 +136,33 @@ impl DijkstrasAlgorithm {
     //Compute the shortest path from source to target, returns the cost
     // run until all nodes reachable from the source are settled
     // -1 as target id tries to settle all nodes
-   
+
     pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> u32 {
         //create vertex priority queue Q
-        let mut pq:DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
+        let mut pq: DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
 
-        
-        let mut distances:HashMap<i64,BastPriorityValue> = HashMap::new();
+        let mut distances: HashMap<i64, BastPriorityValue> = HashMap::new();
         // Predecessor data store
-        let mut prev: HashMap<i64,Option<i64>> = HashMap::new();
-        
+        let mut prev: HashMap<i64, Option<i64>> = HashMap::new();
+
         //initialisation
         distances.insert(source, BastPriorityValue::Some(0));
 
         // associated priority equals dist[·]
-        pq.push(source.clone(),BastPriorityValue::Some(0));
+        pq.push(source.clone(), BastPriorityValue::Some(0));
 
         for node in self.graph.nodes.iter() {
             if node != &source {
                 prev.insert(node.clone(), None); // Predecessor of v
-                //save on memory, don't insert nothing, if nothing is found, state that the node is infinite distance
-                //distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
+                                                 //save on memory, don't insert nothing, if nothing is found, state that the node is infinite distance
+                                                 //distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
             }
         }
 
         //the main loop
         while !pq.is_empty() {
             // Remove and return best vertex
-            //u ← Q.extract_min() 
+            //u ← Q.extract_min()
             if let Some(u) = pq.pop_min() {
                 // Go through all v neighbours of u
                 if let Some(neighbours) = self.graph.edges.get(&u.0) {
@@ -171,22 +172,22 @@ impl DijkstrasAlgorithm {
                         //v.1 is cost for v pair, v.0 is the node id
                         let u_dist = match distances.get(&u.0) {
                             Some(u_dist) => u_dist.clone(),
-                            None => BastPriorityValue::Infinity
+                            None => BastPriorityValue::Infinity,
                         };
                         let alt = u_dist + BastPriorityValue::Some(v.1.clone());
 
                         if let Some(dist_v) = distances.get(&v.0) {
                             //if the new distance is better than the previously stored distance for this node
                             if alt < *dist_v {
-                                    prev.insert(v.0.clone(), Some(u.0.clone()));
+                                prev.insert(v.0.clone(), Some(u.0.clone()));
 
-                                     distances.insert(v.0.clone(), alt.clone());
+                                distances.insert(v.0.clone(), alt.clone());
 
-                                     //Instead of filling the priority queue with all nodes in the initialization phase,
-                                     // it is also possible to initialize it to contain only source; 
-                                     //then, inside the if alt < dist[v] block, 
-                                     //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
-                                     pq.push(v.0.clone(), alt.clone());
+                                //Instead of filling the priority queue with all nodes in the initialization phase,
+                                // it is also possible to initialize it to contain only source;
+                                //then, inside the if alt < dist[v] block,
+                                //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
+                                pq.push(v.0.clone(), alt.clone());
                             }
                         }
                     }
@@ -194,13 +195,18 @@ impl DijkstrasAlgorithm {
             }
         }
 
-        //somehow return the cost?
-        0
+        //return the cost of the target node
+        match distances.get(&target) {
+            Some(target_cost) => match target_cost {
+                BastPriorityValue::Some(target_cost) => *target_cost,
+                BastPriorityValue::Infinity => u32::MAX
+            },
+            None => u32::MAX
+        }
     }
 }
 
 impl RoadNetwork {
-
     pub fn read_from_osm_file(path: &str) -> Result<RoadNetwork, Box<dyn Error>> {
         let mut graph = RoadNetwork::new();
 
@@ -225,7 +231,7 @@ impl RoadNetwork {
             match obj {
                 OsmObj::Node(node) => {
                     new_node_counter = new_node_counter + 1;
-                  //  graph.nodes.insert(node.id.0);
+                    //  graph.nodes.insert(node.id.0);
                     nodes_hashmap.insert(node.id.0, Location::new(node.lat(), node.lon()));
                 }
                 OsmObj::Way(way) => {
@@ -324,10 +330,11 @@ impl RoadNetwork {
         }
 
         //new node insertion process
-        let new_nodes:HashSet<i64> = HashSet::from_iter(graph.edges.iter().map(|(node_id, _)| node_id.clone()));
+        let new_nodes: HashSet<i64> =
+            HashSet::from_iter(graph.edges.iter().map(|(node_id, _)| node_id.clone()));
 
         graph.nodes = new_nodes;
-        
+
         println!("{} in nodes_hashmap", nodes_hashmap.len());
 
         Ok(graph)
@@ -358,6 +365,10 @@ mod tests {
         //for (node_id, edges) in graph.edges {
         //    println!("{} | {:?}", node_id, edges);
         //}
+
+        let routing = DijkstrasAlgorithm {
+            
+        }
     }
 
     #[test]
