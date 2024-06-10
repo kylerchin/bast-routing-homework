@@ -205,10 +205,9 @@ impl DijkstrasAlgorithm {
     pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> BastPriorityValue {
         self.number_of_completed_rounds = self.number_of_completed_rounds + 1;
 
-        
         // used for finding the largest connected component
         self.visited_node_marks
-                    .insert(source, self.number_of_completed_rounds);
+            .insert(source, self.number_of_completed_rounds);
 
         //create vertex priority queue Q
         let mut pq: DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
@@ -228,20 +227,20 @@ impl DijkstrasAlgorithm {
                 prev.insert(node.clone(), None); // Predecessor of v
                                                  //save on memory, don't insert nothing, if nothing is found, state that the node is infinite distance
                                                  //distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
-                //pq.push(node.clone(), BastPriorityValue::Infinity);
+                                                 //pq.push(node.clone(), BastPriorityValue::Infinity);
             }
         }
 
         //the main loop
         while !pq.is_empty() {
-          //  println!("pq {} items remaining", pq.len());
+            //  println!("pq {} items remaining", pq.len());
             // Remove ;and return best vertex
             //u ← Q.extract_min()
             if let Some(u) = pq.pop_min() {
-              //  println!("Checking node {} with priority {:?}", u.0, u.1);
+                //  println!("Checking node {} with priority {:?}", u.0, u.1);
                 // Go through all v neighbours of u
                 if let Some(neighbours) = self.graph.edges.get(&u.0) {
-                 //   println!("Checking neighbours for {}: {:?}", u.0, neighbours);
+                    //   println!("Checking neighbours for {}: {:?}", u.0, neighbours);
                     for v in neighbours {
                         //u.0 is the node id
                         //distances.get(&u.0).unwrap().clone() is cost of node u
@@ -254,21 +253,20 @@ impl DijkstrasAlgorithm {
 
                         let dist_v = match distances.get(&v.0) {
                             Some(dist_v) => dist_v,
-                            None => &BastPriorityValue::Infinity
+                            None => &BastPriorityValue::Infinity,
                         };
-                            //if the new distance is better than the previously stored distance for this node
-                            if alt < *dist_v {
-                                prev.insert(*v.0, Some(u.0));
+                        //if the new distance is better than the previously stored distance for this node
+                        if alt < *dist_v {
+                            prev.insert(*v.0, Some(u.0));
 
-                                distances.insert(*v.0, alt);
+                            distances.insert(*v.0, alt);
 
-                                //Instead of filling the priority queue with all nodes in the initialization phase,
-                                // it is also possible to initialize it to contain only source;
-                                //then, inside the if alt < dist[v] block,
-                                //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
-                                pq.push(*v.0, alt);
-                            }
-                        
+                            //Instead of filling the priority queue with all nodes in the initialization phase,
+                            // it is also possible to initialize it to contain only source;
+                            //then, inside the if alt < dist[v] block,
+                            //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
+                            pq.push(*v.0, alt);
+                        }
                     }
                 }
             }
@@ -279,9 +277,9 @@ impl DijkstrasAlgorithm {
         for distance_store in distances.iter() {
             match distance_store.1 {
                 BastPriorityValue::Some(distance) => {
-                        // used for finding the largest connected component
-                        self.visited_node_marks
-                            .insert(*distance_store.0, self.number_of_completed_rounds);
+                    // used for finding the largest connected component
+                    self.visited_node_marks
+                        .insert(*distance_store.0, self.number_of_completed_rounds);
                 }
                 _ => {}
             }
@@ -468,9 +466,7 @@ mod tests {
         assert!(graph.nodes.contains(&1834861939));
         assert!(graph.nodes.contains(&3710901043));
 
-
-     //   println!("Edges next to {}, {:?}", 122976558,graph.edges.get(&122976558));
-
+        //   println!("Edges next to {}, {:?}", 122976558,graph.edges.get(&122976558));
 
         let mut routing = DijkstrasAlgorithm {
             graph: graph,
@@ -478,24 +474,24 @@ mod tests {
             number_of_completed_rounds: 0,
         };
 
-
         let route_between_shen_and_ben = routing.compute_shortest_path(1834861939, 3710901043);
 
-        println!("Cost in seconds between Shen and Ben {:?}", route_between_shen_and_ben);
+        println!(
+            "Cost in seconds between Shen and Ben {:?}",
+            route_between_shen_and_ben
+        );
 
         //find largest connected component
         let start_connected_component_compute = Instant::now();
-     //   let largest_connected_component = routing.find_largest_connected_component();
+        //   let largest_connected_component = routing.find_largest_connected_component();
 
-       let end_connected_component_compute_time = Instant::now();
+        let end_connected_component_compute_time = Instant::now();
 
-        
-       /*
+        /*
         println!(
             "Duration to find connected components {:?}",
             end_connected_component_compute_time - start_connected_component_compute
         ); */
-         
     }
 
     #[test]
