@@ -483,15 +483,15 @@ mod tests {
 
         //find largest connected component
         let start_connected_component_compute = Instant::now();
-        //   let largest_connected_component = routing.find_largest_connected_component();
+          let largest_connected_component = routing.find_largest_connected_component();
 
         let end_connected_component_compute_time = Instant::now();
 
-        /*
+        
         println!(
             "Duration to find connected components {:?}",
             end_connected_component_compute_time - start_connected_component_compute
-        ); */
+        ); 
     }
 
     #[test]
