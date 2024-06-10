@@ -169,10 +169,10 @@ impl DijkstrasAlgorithm {
                 .unwrap()
                 .0;
 
-            println!(
-                "Round {}, Now attempting to path {}",
-                self.number_of_completed_rounds, pick_source_id
-            );
+            // println!(
+            //    "Round {}, Now attempting to path {}",
+            //     self.number_of_completed_rounds, pick_source_id
+            //);
             self.compute_shortest_path(*pick_source_id, -1);
         }
 
@@ -272,7 +272,7 @@ impl DijkstrasAlgorithm {
             }
         }
 
-        println!("distances {:?}", distances);
+        //  println!("distances {:?}", distances);
 
         for distance_store in distances.iter() {
             match distance_store.1 {
@@ -483,15 +483,14 @@ mod tests {
 
         //find largest connected component
         let start_connected_component_compute = Instant::now();
-          let largest_connected_component = routing.find_largest_connected_component();
+        let largest_connected_component = routing.find_largest_connected_component();
 
         let end_connected_component_compute_time = Instant::now();
 
-        
         println!(
             "Duration to find connected components {:?}",
             end_connected_component_compute_time - start_connected_component_compute
-        ); 
+        );
     }
 
     #[test]
