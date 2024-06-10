@@ -53,8 +53,10 @@ pub fn speed_from_way_kmh(way: &osmpbfreader::objects::Way) -> Option<u32> {
 }
 
 struct DijkstrasAlgorithm {
-    graph: Arc<RoadNetwork>,
-    visited_node_marks: HashSet<i64>,
+    graph: RoadNetwork,
+    //the value is the round number
+    visited_node_marks: HashMap<i64, usize>,
+    number_of_completed_rounds: usize,
 }
 
 struct ShortestPath {
@@ -62,7 +64,7 @@ struct ShortestPath {
     cost: u32,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug, PartialOrd)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 enum BastPriorityValue {
     Infinity,
     Some(u32),
@@ -79,6 +81,12 @@ impl std::ops::Add for BastPriorityValue {
                 BastPriorityValue::Some(b) => BastPriorityValue::Some(a + b),
             },
         }
+    }
+}
+
+impl PartialOrd for BastPriorityValue {
+    fn partial_cmp(&self, other: &BastPriorityValue) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -128,16 +136,91 @@ impl Ord for BastPriorityValue {
 }
 
 impl DijkstrasAlgorithm {
-    //Mark all nodes visited by the next call to compute_shortest_path with this number
-    pub fn set_visited_node_mark(&mut self, node_id: i64) {
-        self.visited_node_marks.insert(node_id);
-    }
-
     //Compute the shortest path from source to target, returns the cost
     // run until all nodes reachable from the source are settled
     // -1 as target id tries to settle all nodes
 
-    pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> u32 {
+    pub fn reduce_to_largest_connected_component(&mut self) -> () {
+        let largest_connected_component = self.find_largest_connected_component();
+
+        //delete all nodes and corrosponding edges which are not in the largest connected component
+
+        for (marked_node_id, iteration_component) in self.visited_node_marks.iter() {
+            if *iteration_component != largest_connected_component {
+                //delete this
+
+                self.graph.edges.remove(marked_node_id);
+                self.graph.nodes.remove(marked_node_id);
+            }
+        }
+    }
+
+    pub fn find_largest_connected_component(&mut self) -> usize {
+        while self
+            .visited_node_marks
+            .iter()
+            .find(|node_mark| *node_mark.1 == 0)
+            .is_some()
+        {
+            let pick_source_id = self
+                .visited_node_marks
+                .iter()
+                .find(|node_mark| *node_mark.1 == 0)
+                .unwrap()
+                .0;
+
+            let pick_target_id_pre = self
+                .visited_node_marks
+                .iter()
+                .find(|node_mark| *node_mark.1 == 0 && *node_mark.0 != *pick_source_id);
+
+            if (pick_target_id_pre.is_none()) {
+                break;
+            }
+
+            let pick_target_id = pick_target_id_pre.unwrap().0;
+
+            println!(
+                "Round {}, Now attempting to path {} and {}",
+                self.number_of_completed_rounds, pick_source_id, pick_target_id
+            );
+            self.compute_shortest_path(*pick_source_id, *pick_target_id);
+        }
+
+        //scan through visited node marks to make a ranking table
+
+        let mut round_to_number_of_nodes: HashMap<usize, usize> = HashMap::new();
+
+        for (mark_node_id, mark_round_number) in self.visited_node_marks.iter() {
+            round_to_number_of_nodes
+                .entry(*mark_round_number)
+                .and_modify(|x| *x += 1)
+                .or_insert(1);
+        }
+
+        let mut sorted_round_order: Vec<(usize, usize)> =
+            round_to_number_of_nodes.into_iter().collect();
+
+        sorted_round_order.sort_by_key(|k| k.1);
+
+        sorted_round_order.reverse();
+
+        println!(
+            "Largest connected components with node count: {:?}",
+            sorted_round_order
+        );
+
+        sorted_round_order[0].0
+    }
+
+    pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> BastPriorityValue {
+        self.number_of_completed_rounds = self.number_of_completed_rounds + 1;
+
+        
+        // used for finding the largest connected component
+        self.visited_node_marks
+                    .insert(source, self.number_of_completed_rounds);
+
         //create vertex priority queue Q
         let mut pq: DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
 
@@ -195,13 +278,21 @@ impl DijkstrasAlgorithm {
             }
         }
 
+        for distance_store in distances.iter() {
+            match distance_store.1 {
+                BastPriorityValue::Some(distance) => {
+                        // used for finding the largest connected component
+                        self.visited_node_marks
+                            .insert(*distance_store.0, self.number_of_completed_rounds);
+                }
+                _ => {}
+            }
+        }
+
         //return the cost of the target node
         match distances.get(&target) {
-            Some(target_cost) => match target_cost {
-                BastPriorityValue::Some(target_cost) => *target_cost,
-                BastPriorityValue::Infinity => u32::MAX
-            },
-            None => u32::MAX
+            Some(target_cost) => *target_cost,
+            None => BastPriorityValue::Infinity,
         }
     }
 }
@@ -366,9 +457,42 @@ mod tests {
         //    println!("{} | {:?}", node_id, edges);
         //}
 
-        let routing = DijkstrasAlgorithm {
-            
-        }
+        let initial_visited_node_marks = {
+            let mut visited_node_marks: HashMap<i64, usize> = HashMap::new();
+
+            for node in &graph.nodes {
+                visited_node_marks.insert(*node, 0);
+            }
+
+            visited_node_marks
+        };
+
+        assert!(graph.nodes.contains(&1834861939));
+        assert!(graph.nodes.contains(&3710901043));
+
+        let mut routing = DijkstrasAlgorithm {
+            graph: graph,
+            visited_node_marks: initial_visited_node_marks,
+            number_of_completed_rounds: 0,
+        };
+
+
+        let route_between_shen_and_ben = routing.compute_shortest_path(1834861939, 3710901043);
+
+        println!("Cost in seconds between Shen and Ben {:?}", route_between_shen_and_ben);
+
+        //find largest connected component
+      //  let start_connected_component_compute = Instant::now();
+      //  let largest_connected_component = routing.find_largest_connected_component();
+
+       // let end_connected_component_compute_time = Instant::now();
+
+        /*
+        println!(
+            "Duration to find connected components {:?}",
+            end_connected_component_compute_time - start_connected_component_compute
+        );
+         */
     }
 
     #[test]
