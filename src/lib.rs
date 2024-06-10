@@ -169,22 +169,11 @@ impl DijkstrasAlgorithm {
                 .unwrap()
                 .0;
 
-            let pick_target_id_pre = self
-                .visited_node_marks
-                .iter()
-                .find(|node_mark| *node_mark.1 == 0 && *node_mark.0 != *pick_source_id);
-
-            if (pick_target_id_pre.is_none()) {
-                break;
-            }
-
-            let pick_target_id = pick_target_id_pre.unwrap().0;
-
             println!(
-                "Round {}, Now attempting to path {} and {}",
-                self.number_of_completed_rounds, pick_source_id, pick_target_id
+                "Round {}, Now attempting to path {}",
+                self.number_of_completed_rounds, pick_source_id
             );
-            self.compute_shortest_path(*pick_source_id, *pick_target_id);
+            self.compute_shortest_path(*pick_source_id, -1);
         }
 
         //scan through visited node marks to make a ranking table
@@ -239,44 +228,53 @@ impl DijkstrasAlgorithm {
                 prev.insert(node.clone(), None); // Predecessor of v
                                                  //save on memory, don't insert nothing, if nothing is found, state that the node is infinite distance
                                                  //distances.insert(node.clone(), BastPriorityValue::Infinity);  // Unknown distance from source to v
+                //pq.push(node.clone(), BastPriorityValue::Infinity);
             }
         }
 
         //the main loop
         while !pq.is_empty() {
-            // Remove and return best vertex
+          //  println!("pq {} items remaining", pq.len());
+            // Remove ;and return best vertex
             //u ← Q.extract_min()
             if let Some(u) = pq.pop_min() {
+              //  println!("Checking node {} with priority {:?}", u.0, u.1);
                 // Go through all v neighbours of u
                 if let Some(neighbours) = self.graph.edges.get(&u.0) {
+                 //   println!("Checking neighbours for {}: {:?}", u.0, neighbours);
                     for v in neighbours {
                         //u.0 is the node id
                         //distances.get(&u.0).unwrap().clone() is cost of node u
                         //v.1 is cost for v pair, v.0 is the node id
                         let u_dist = match distances.get(&u.0) {
-                            Some(u_dist) => u_dist.clone(),
+                            Some(u_dist) => *u_dist,
                             None => BastPriorityValue::Infinity,
                         };
-                        let alt = u_dist + BastPriorityValue::Some(v.1.clone());
+                        let alt = u_dist + BastPriorityValue::Some(*v.1);
 
-                        if let Some(dist_v) = distances.get(&v.0) {
+                        let dist_v = match distances.get(&v.0) {
+                            Some(dist_v) => dist_v,
+                            None => &BastPriorityValue::Infinity
+                        };
                             //if the new distance is better than the previously stored distance for this node
                             if alt < *dist_v {
-                                prev.insert(v.0.clone(), Some(u.0.clone()));
+                                prev.insert(*v.0, Some(u.0));
 
-                                distances.insert(v.0.clone(), alt.clone());
+                                distances.insert(*v.0, alt);
 
                                 //Instead of filling the priority queue with all nodes in the initialization phase,
                                 // it is also possible to initialize it to contain only source;
                                 //then, inside the if alt < dist[v] block,
                                 //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
-                                pq.push(v.0.clone(), alt.clone());
+                                pq.push(*v.0, alt);
                             }
-                        }
+                        
                     }
                 }
             }
         }
+
+        println!("distances {:?}", distances);
 
         for distance_store in distances.iter() {
             match distance_store.1 {
@@ -470,6 +468,10 @@ mod tests {
         assert!(graph.nodes.contains(&1834861939));
         assert!(graph.nodes.contains(&3710901043));
 
+
+     //   println!("Edges next to {}, {:?}", 122976558,graph.edges.get(&122976558));
+
+
         let mut routing = DijkstrasAlgorithm {
             graph: graph,
             visited_node_marks: initial_visited_node_marks,
@@ -482,17 +484,18 @@ mod tests {
         println!("Cost in seconds between Shen and Ben {:?}", route_between_shen_and_ben);
 
         //find largest connected component
-      //  let start_connected_component_compute = Instant::now();
-      //  let largest_connected_component = routing.find_largest_connected_component();
+        let start_connected_component_compute = Instant::now();
+     //   let largest_connected_component = routing.find_largest_connected_component();
 
-       // let end_connected_component_compute_time = Instant::now();
+       let end_connected_component_compute_time = Instant::now();
 
-        /*
+        
+       /*
         println!(
             "Duration to find connected components {:?}",
             end_connected_component_compute_time - start_connected_component_compute
-        );
-         */
+        ); */
+         
     }
 
     #[test]
