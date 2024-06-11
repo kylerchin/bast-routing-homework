@@ -488,14 +488,41 @@ mod tests {
         let end_connected_component_compute_time = Instant::now();
 
         println!(
-            "Duration to find connected components {:?}",
+            "Duration to find connected components UCI {:?}",
             end_connected_component_compute_time - start_connected_component_compute
         );
     }
 
     #[test]
     fn bast_baden_wuerttemberg() {
-        test_osm("./bast-baden-wuerttemberg.pbf");
+        let graph = test_osm("./bast-baden-wuerttemberg.pbf");
+
+        let initial_visited_node_marks = {
+            let mut visited_node_marks: HashMap<i64, usize> = HashMap::new();
+
+            for node in &graph.nodes {
+                visited_node_marks.insert(*node, 0);
+            }
+
+            visited_node_marks
+        };
+
+        let mut routing =  DijkstrasAlgorithm {
+            graph: graph,
+            visited_node_marks: initial_visited_node_marks,
+            number_of_completed_rounds: 0,
+        };
+
+        //find largest connected component
+        let start_connected_component_compute = Instant::now();
+        let largest_connected_component = routing.find_largest_connected_component();
+
+        let end_connected_component_compute_time = Instant::now();
+
+        println!(
+            "Duration to find connected components BADEN {:?}",
+            end_connected_component_compute_time - start_connected_component_compute
+        );
     }
 
     fn test_osm(path: &str) -> RoadNetwork {
