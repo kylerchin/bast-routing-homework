@@ -8,55 +8,18 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-#[derive(Default)]
-pub struct RoadNetwork {
-    // vertex id is an integer (i64)
-    // edge is HashMap of the <NodeId, Cost>
-    pub nodes: HashSet<i64>,
-    pub edges: HashMap<i64, HashMap<i64, u32>>,
-}
+mod road_network;
 
-pub struct SimplifiedWay {
-    id: i64,
-    highway_speed_m_per_s: f32,
-    node_sequence: Vec<i64>,
-}
-
-pub fn speed_from_way_kmh(way: &osmpbfreader::objects::Way) -> Option<u32> {
-    let tags = way.tags.clone();
-    let highway = tags
-        .into_inner()
-        .into_iter()
-        .find(|(key, _)| key == &"highway");
-
-    match highway {
-        Some(highway) => match highway.1.as_str() {
-            "motorway" => Some(110),
-            "trunk" => Some(110),
-            "primary" => Some(70),
-            "secondary" => Some(60),
-            "tertiary" => Some(50),
-            "motorway_link" => Some(50),
-            "trunk_link" => Some(50),
-            "primary_link" => Some(50),
-            "secondary_link" => Some(50),
-            "road" => Some(40),
-            "unclassified" => Some(40),
-            "residential" => Some(30),
-            "unsurfaced" => Some(30),
-            "living_street" => Some(10),
-            "service" => Some(5),
-            _ => None,
-        },
-        None => None,
-    }
-}
+use crate::road_network::RoadNetwork;
+use crate::road_network::SimplifiedWay;
+use crate::road_network::speed_from_way_kmh;
 
 struct DijkstrasAlgorithm {
     graph: RoadNetwork,
     //the value is the round number
     visited_node_marks: HashMap<i64, usize>,
     number_of_completed_rounds: usize,
+    heuristic: Option<Arc<HashMap<i64,usize>>>
 }
 
 struct ShortestPath {
@@ -472,6 +435,7 @@ mod tests {
             graph: graph,
             visited_node_marks: initial_visited_node_marks,
             number_of_completed_rounds: 0,
+            heuristic: None
         };
 
         let route_between_shen_and_ben = routing.compute_shortest_path(1834861939, 3710901043);
@@ -511,6 +475,7 @@ mod tests {
             graph: graph,
             visited_node_marks: initial_visited_node_marks,
             number_of_completed_rounds: 0,
+            heuristic: None
         };
 
         //find largest connected component
