@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct RoadNetwork {
     // vertex id is an integer (i64)
     // edge is HashMap of the <NodeId, Cost>

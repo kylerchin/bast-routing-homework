@@ -1,9 +1,9 @@
+use core::num;
 use geoutils::Location;
 use osmpbf::elements::Way;
 use osmpbf::elements::WayNodeLocation;
 use osmpbf::{Element, ElementReader};
 use priority_queue::DoublePriorityQueue;
-use core::num;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
@@ -20,18 +20,57 @@ struct DijkstrasAlgorithm {
     //the value is the round number
     visited_node_marks: HashMap<i64, usize>,
     number_of_completed_rounds: usize,
-    heuristic: Option<Arc<HashMap<i64, usize>>>,
+    heuristic: Option<Arc<HashMap<i64, BastPriorityValue>>>,
 }
 
 fn precompute_landmark_distances(
     graph: &RoadNetwork,
     number_of_landmarks: usize,
-) -> HashMap<i64, usize> {
-    let landmarks: Vec<i64> = graph.nodes.iter().take(number_of_landmarks).cloned().collect();
+    //landmark.node -> distance
+) -> HashMap<i64, HashMap<i64, BastPriorityValue>> {
+    let landmarks: Vec<i64> = graph
+        .nodes
+        .iter()
+        .take(number_of_landmarks)
+        .cloned()
+        .collect();
 
-    
+    let mut distances_from_each_landmark: HashMap<i64, HashMap<i64, BastPriorityValue>> =
+        HashMap::new();
 
-    HashMap::new()
+    let mut dijk = DijkstrasAlgorithm {
+        graph: graph.clone(),
+        visited_node_marks: HashMap::new(),
+        number_of_completed_rounds: 0,
+        heuristic: None,
+    };
+
+    for landmark in landmarks {
+        let all_distances = dijk.compute_shortest_path(landmark, -1).1;
+
+        distances_from_each_landmark.insert(landmark, all_distances);
+    }
+
+    distances_from_each_landmark
+}
+
+fn transform_landmark_db_into_heuristic(
+    road_network: &RoadNetwork,
+    landmark_database: &HashMap<i64, HashMap<i64, BastPriorityValue>>,
+    target: i64,
+) -> HashMap<i64, BastPriorityValue> {
+    for node in road_network.nodes {
+        let mut tentative_heursistic = BastPriorityValue::Some(0);
+
+        for (landmark_node_id, distance_from_landmark) in landmark_database {
+            let landmark_to_target = 
+
+            let distance_from_landmark_to_u = match distance_from_landmark.get(&node) {
+                Some(distance_found) => distance_found,
+                None => &BastPriorityValue::Infinity
+            };
+        }
+    }
 }
 
 struct ShortestPath {
@@ -177,7 +216,12 @@ impl DijkstrasAlgorithm {
         sorted_round_order[0].0
     }
 
-    pub fn compute_shortest_path(&mut self, source: i64, target: i64) -> BastPriorityValue {
+    //return the cost and all distances
+    pub fn compute_shortest_path(
+        &mut self,
+        source: i64,
+        target: i64,
+    ) -> (BastPriorityValue, HashMap<i64, BastPriorityValue>) {
         self.number_of_completed_rounds = self.number_of_completed_rounds + 1;
 
         // used for finding the largest connected component
@@ -199,7 +243,7 @@ impl DijkstrasAlgorithm {
             source,
             match &self.heuristic {
                 Some(table) => match table.get(&source) {
-                    Some(initial_value) => BastPriorityValue::Some(*initial_value as u32),
+                    Some(initial_value) => *initial_value,
                     None => BastPriorityValue::Some(0),
                 },
                 None => BastPriorityValue::Some(0),
@@ -255,12 +299,12 @@ impl DijkstrasAlgorithm {
                             //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
 
                             let new_queue_value = match &self.heuristic {
-                                None => alt, 
+                                None => alt,
                                 //get the heuristic of the neighbour
                                 Some(table) => match table.get(v.0) {
                                     None => alt,
-                                    Some(heuristic_for_neighbour) => alt + BastPriorityValue::Some(*heuristic_for_neighbour as u32)
-                                }
+                                    Some(heuristic_for_neighbour) => alt + *heuristic_for_neighbour,
+                                },
                             };
 
                             pq.push(*v.0, new_queue_value);
@@ -284,10 +328,13 @@ impl DijkstrasAlgorithm {
         }
 
         //return the cost of the target node
-        match distances.get(&target) {
-            Some(target_cost) => *target_cost,
-            None => BastPriorityValue::Infinity,
-        }
+        (
+            match distances.get(&target) {
+                Some(target_cost) => *target_cost,
+                None => BastPriorityValue::Infinity,
+            },
+            distances,
+        )
     }
 }
 
@@ -477,7 +524,7 @@ mod tests {
 
         println!(
             "Cost in seconds between Shen and Ben {:?}",
-            route_between_shen_and_ben
+            route_between_shen_and_ben.0
         );
 
         //find largest connected component
