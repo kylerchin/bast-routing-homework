@@ -3,6 +3,7 @@ use osmpbf::elements::Way;
 use osmpbf::elements::WayNodeLocation;
 use osmpbf::{Element, ElementReader};
 use priority_queue::DoublePriorityQueue;
+use core::num;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
@@ -10,16 +11,27 @@ use std::time::Instant;
 
 mod road_network;
 
+use crate::road_network::speed_from_way_kmh;
 use crate::road_network::RoadNetwork;
 use crate::road_network::SimplifiedWay;
-use crate::road_network::speed_from_way_kmh;
 
 struct DijkstrasAlgorithm {
     graph: RoadNetwork,
     //the value is the round number
     visited_node_marks: HashMap<i64, usize>,
     number_of_completed_rounds: usize,
-    heuristic: Option<Arc<HashMap<i64,usize>>>
+    heuristic: Option<Arc<HashMap<i64, usize>>>,
+}
+
+fn precompute_landmark_distances(
+    graph: &RoadNetwork,
+    number_of_landmarks: usize,
+) -> HashMap<i64, usize> {
+    let landmarks: Vec<i64> = graph.nodes.iter().take(number_of_landmarks).cloned().collect();
+
+    
+
+    HashMap::new()
 }
 
 struct ShortestPath {
@@ -175,13 +187,24 @@ impl DijkstrasAlgorithm {
         //create vertex priority queue Q
         let mut pq: DoublePriorityQueue<i64, BastPriorityValue> = DoublePriorityQueue::new();
 
+        //known as gscore
         let mut distances: HashMap<i64, BastPriorityValue> = HashMap::new();
+
         // Predecessor data store
+        // called cameFrom on A* page
         let mut prev: HashMap<i64, Option<i64>> = HashMap::new();
 
         //initialisation
-        distances.insert(source, BastPriorityValue::Some(0));
-
+        distances.insert(
+            source,
+            match &self.heuristic {
+                Some(table) => match table.get(&source) {
+                    Some(initial_value) => BastPriorityValue::Some(*initial_value as u32),
+                    None => BastPriorityValue::Some(0),
+                },
+                None => BastPriorityValue::Some(0),
+            },
+        );
         // associated priority equals dist[·]
         pq.push(source.clone(), BastPriorityValue::Some(0));
 
@@ -212,6 +235,8 @@ impl DijkstrasAlgorithm {
                             Some(u_dist) => *u_dist,
                             None => BastPriorityValue::Infinity,
                         };
+
+                        //tentative_gScore
                         let alt = u_dist + BastPriorityValue::Some(*v.1);
 
                         let dist_v = match distances.get(&v.0) {
@@ -228,7 +253,17 @@ impl DijkstrasAlgorithm {
                             // it is also possible to initialize it to contain only source;
                             //then, inside the if alt < dist[v] block,
                             //the decrease_priority() becomes an add_with_priority() operation if the node is not already in the queue
-                            pq.push(*v.0, alt);
+
+                            let new_queue_value = match &self.heuristic {
+                                None => alt, 
+                                //get the heuristic of the neighbour
+                                Some(table) => match table.get(v.0) {
+                                    None => alt,
+                                    Some(heuristic_for_neighbour) => alt + BastPriorityValue::Some(*heuristic_for_neighbour as u32)
+                                }
+                            };
+
+                            pq.push(*v.0, new_queue_value);
                         }
                     }
                 }
@@ -435,7 +470,7 @@ mod tests {
             graph: graph,
             visited_node_marks: initial_visited_node_marks,
             number_of_completed_rounds: 0,
-            heuristic: None
+            heuristic: None,
         };
 
         let route_between_shen_and_ben = routing.compute_shortest_path(1834861939, 3710901043);
@@ -471,11 +506,11 @@ mod tests {
             visited_node_marks
         };
 
-        let mut routing =  DijkstrasAlgorithm {
+        let mut routing = DijkstrasAlgorithm {
             graph: graph,
             visited_node_marks: initial_visited_node_marks,
             number_of_completed_rounds: 0,
-            heuristic: None
+            heuristic: None,
         };
 
         //find largest connected component
