@@ -16,3 +16,8 @@ It's probably better to run the examples with more recent data.
 
 https://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf
 https://download.geofabrik.de/europe/germany/saarland-latest.osm.pbf
+
+Testing can be done via 
+```bash
+cargo test --release -- --nocapture
+```

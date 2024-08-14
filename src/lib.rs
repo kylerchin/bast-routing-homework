@@ -49,6 +49,8 @@ fn precompute_landmark_distances(
     };
 
     for landmark in landmarks {
+       // println!("landmark finding for {}", landmark);
+
         let all_distances = dijk.compute_shortest_path(landmark, -1).1;
 
         distances_from_each_landmark.insert(landmark, all_distances);
@@ -193,13 +195,19 @@ impl DijkstrasAlgorithm {
                 .iter()
                 .find(|node_mark| *node_mark.1 == 0)
                 .unwrap()
-                .0;
+                .0.clone();
 
             // println!(
             //    "Round {}, Now attempting to path {}",
             //     self.number_of_completed_rounds, pick_source_id
             //);
-            self.compute_shortest_path(*pick_source_id, -1);
+         //   println!("Finding from {}", pick_source_id);
+            self.compute_shortest_path(pick_source_id, -1);
+           // println!("Found all nodes from {}", pick_source_id);
+
+           if self.visited_node_marks.iter().filter(|(node_id, round)| **round == self.number_of_completed_rounds).count() > (self.graph.nodes.len() / 2) + 1 {
+            break;
+           }
         }
 
         //scan through visited node marks to make a ranking table
@@ -249,6 +257,8 @@ impl DijkstrasAlgorithm {
         // Predecessor data store
         // called cameFrom on A* page
         let mut prev: HashMap<i64, Option<i64>> = HashMap::new();
+
+        distances.insert(source, BastPriorityValue::Some(0));
 
         //initialisation
         distances.insert(
@@ -595,11 +605,11 @@ mod tests {
         let pick_rand_end = routing.graph.get_random_node();
 
         let compute_landmarks_timer = Instant::now();
-        let landmark_database = precompute_landmark_distances(&graph, 42);
+        let landmark_database = precompute_landmark_distances(&routing.graph, 42);
         println!("Computing landmarks for Baden-Württemberg {:?}", compute_landmarks_timer.elapsed());
 
         let compute_h_timer = Instant::now();
-        let calculate_heuristic = transform_landmark_db_into_heuristic(&graph, &landmark_database, pick_rand_end);
+        let calculate_heuristic = transform_landmark_db_into_heuristic(&routing.graph, &landmark_database, pick_rand_end);
         println!("Computing heuristic for Baden-Württemberg {:?}", compute_h_timer.elapsed());
 
         let h = Arc::new(calculate_heuristic);
