@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
+use rand::Rng;
 
 #[derive(Default, Clone, Debug)]
 pub struct RoadNetwork {
@@ -8,6 +9,18 @@ pub struct RoadNetwork {
     // edge is HashMap of the <NodeId, Cost>
     pub nodes: HashSet<i64>,
     pub edges: HashMap<i64, HashMap<i64, u32>>,
+}
+
+impl RoadNetwork {
+    
+pub fn get_random_node(self: &RoadNetwork) -> i64 {
+    let mut vec: Vec<i64> = self.nodes.iter().cloned().collect();
+    
+        let index = rand::thread_rng().gen_range(0..vec.len());
+       vec[index]
+    
+}
+
 }
 
 pub struct SimplifiedWay {

@@ -7,6 +7,8 @@ use priority_queue::DoublePriorityQueue;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
+
+use rand::Rng;
 use std::time::Instant;
 
 mod road_network;
@@ -22,6 +24,7 @@ struct DijkstrasAlgorithm {
     number_of_completed_rounds: usize,
     heuristic: Option<Arc<HashMap<i64, BastPriorityValue>>>,
 }
+
 
 fn precompute_landmark_distances(
     graph: &RoadNetwork,
@@ -59,18 +62,24 @@ fn transform_landmark_db_into_heuristic(
     landmark_database: &HashMap<i64, HashMap<i64, BastPriorityValue>>,
     target: i64,
 ) -> HashMap<i64, BastPriorityValue> {
-    for node in road_network.nodes {
-        let mut tentative_heursistic = BastPriorityValue::Some(0);
+    
+    road_network.nodes.iter().map(|source| {
+        (*source, {
+            //look at all landmarks,
+                //the heuristic for each node is the largest difference between (the source and the landmark) vs (the landmark and the source)
+            landmark_database.iter().map(|(_, arr)| {
+                
+                let distance_lu = *arr.get(source).unwrap();
 
-        for (landmark_node_id, distance_from_landmark) in landmark_database {
-            let landmark_to_target = 
+                let distance_tu = *arr.get(&target).unwrap();
 
-            let distance_from_landmark_to_u = match distance_from_landmark.get(&node) {
-                Some(distance_found) => distance_found,
-                None => &BastPriorityValue::Infinity
-            };
-        }
-    }
+                match (distance_lu, distance_tu) {
+                    (BastPriorityValue::Some(lu), BastPriorityValue::Some(tu)) => BastPriorityValue::Some(lu.abs_diff(tu)),
+                    _ => BastPriorityValue::Some(0)
+                }
+            }).max().unwrap()
+        })
+    }).collect()
 }
 
 struct ShortestPath {
@@ -155,7 +164,11 @@ impl DijkstrasAlgorithm {
     // -1 as target id tries to settle all nodes
 
     pub fn reduce_to_largest_connected_component(&mut self) -> () {
+
         let largest_connected_component = self.find_largest_connected_component();
+
+        
+        println!("calculated component, deleting....");
 
         //delete all nodes and corrosponding edges which are not in the largest connected component
 
@@ -173,8 +186,7 @@ impl DijkstrasAlgorithm {
         while self
             .visited_node_marks
             .iter()
-            .find(|node_mark| *node_mark.1 == 0)
-            .is_some()
+            .any(|node_mark| *node_mark.1 == 0)
         {
             let pick_source_id = self
                 .visited_node_marks
@@ -336,6 +348,11 @@ impl DijkstrasAlgorithm {
             distances,
         )
     }
+
+    
+fn change_heuristic(self: &mut DijkstrasAlgorithm, new_heuristic: Option<Arc<HashMap<i64, BastPriorityValue>>>) {
+    self.heuristic = new_heuristic;
+}
 }
 
 impl RoadNetwork {
@@ -537,6 +554,7 @@ mod tests {
             "Duration to find connected components UCI {:?}",
             end_connected_component_compute_time - start_connected_component_compute
         );
+
     }
 
     #[test]
@@ -554,22 +572,45 @@ mod tests {
         };
 
         let mut routing = DijkstrasAlgorithm {
-            graph: graph,
+            graph: graph.clone(),
             visited_node_marks: initial_visited_node_marks,
             number_of_completed_rounds: 0,
             heuristic: None,
         };
 
+        println!("Now trying to find largest connected component of Baden-Württemberg");
+
         //find largest connected component
         let start_connected_component_compute = Instant::now();
-        let largest_connected_component = routing.find_largest_connected_component();
+
+        let reduce_to_largest_connected_component = routing.reduce_to_largest_connected_component();
 
         let end_connected_component_compute_time = Instant::now();
 
         println!(
-            "Duration to find connected components BADEN {:?}",
+            "Duration to find connected components Baden-Württemberg {:?}",
             end_connected_component_compute_time - start_connected_component_compute
         );
+        let pick_rand_start = routing.graph.get_random_node();
+        let pick_rand_end = routing.graph.get_random_node();
+
+        let compute_landmarks_timer = Instant::now();
+        let landmark_database = precompute_landmark_distances(&graph, 42);
+        println!("Computing landmarks for Baden-Württemberg {:?}", compute_landmarks_timer.elapsed());
+
+        let compute_h_timer = Instant::now();
+        let calculate_heuristic = transform_landmark_db_into_heuristic(&graph, &landmark_database, pick_rand_end);
+        println!("Computing heuristic for Baden-Württemberg {:?}", compute_h_timer.elapsed());
+
+        let h = Arc::new(calculate_heuristic);
+        routing.change_heuristic(Some(h));
+
+        //run query
+
+        let compute_a_star_with_landmarks_timer = Instant::now();
+        routing.compute_shortest_path(pick_rand_start, pick_rand_end);
+        println!("Computing a star with landmarks shortest path for Baden-Württemberg {:?}", compute_a_star_with_landmarks_timer.elapsed());
+
     }
 
     fn test_osm(path: &str) -> RoadNetwork {
